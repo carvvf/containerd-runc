@@ -1,0 +1,262 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build: build and qualify local binaries",
+      "type": "process",
+      "command": "/usr/bin/python3",
+      "args": [
+        "-m",
+        "tools.pipeline",
+        "check",
+        "--component",
+        "all"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": false
+      }
+    },
+    {
+      "label": "Trivy: scan CVE",
+      "type": "process",
+      "command": "/usr/bin/python3",
+      "args": [
+        "-m",
+        "tools.scan",
+        "--component",
+        "all"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": false
+      }
+    },
+    {
+      "label": "Test: CRI smoke",
+      "type": "shell",
+      "command": "bash tests/smoke-cri.sh build/containerd/out/bin build/runc/out/bin/runc \"$(jq -r .version build/containerd/build.json)\" \"$(jq -r .version build/runc/build.json)\" build/smoke.log",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "shell": {
+          "executable": "/bin/bash",
+          "args": [
+            "-e",
+            "-c"
+          ]
+        }
+      },
+      "problemMatcher": [],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": false
+      }
+    },
+    {
+      "label": "Test: build inputs",
+      "type": "process",
+      "command": "/usr/bin/python3",
+      "args": [
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_build_inputs.py"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "hide": true,
+      "group": "test"
+    },
+    {
+      "label": "Test: module overrides",
+      "type": "process",
+      "command": "/usr/bin/python3",
+      "args": [
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_modules.py"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "hide": true,
+      "group": "test"
+    },
+    {
+      "label": "Test: scan gate",
+      "type": "process",
+      "command": "/usr/bin/python3",
+      "args": [
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_scan.py"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "hide": true,
+      "group": "test"
+    },
+    {
+      "label": "Test: release publication",
+      "type": "process",
+      "command": "/usr/bin/python3",
+      "args": [
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_release.py"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "hide": true,
+      "group": "test"
+    },
+    {
+      "label": "Test: retention policy",
+      "type": "process",
+      "command": "/usr/bin/python3",
+      "args": [
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_retention.py"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "hide": true,
+      "group": "test"
+    },
+    {
+      "label": "Lint: Dockerfiles",
+      "hide": true,
+      "type": "shell",
+      "command": "docker run --rm -i hadolint/hadolint:v2.14.0 < docker/containerd/Dockerfile\ndocker run --rm -i hadolint/hadolint:v2.14.0 < docker/runc/Dockerfile",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "shell": {
+          "executable": "/bin/bash",
+          "args": [
+            "-e",
+            "-c"
+          ]
+        }
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Lint: shell scripts",
+      "type": "process",
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "--entrypoint",
+        "shellcheck",
+        "-v",
+        "${workspaceFolder}:/workspace:ro",
+        "-w",
+        "/workspace",
+        "koalaman/shellcheck-alpine:v0.10.0",
+        "--shell=bash",
+        "-x",
+        "tests/smoke-cri.sh",
+        "scripts/trivy/resolve-version.sh",
+        "docker/apply-module-overrides.sh"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "hide": true
+    },
+    {
+      "label": "Lint: GitHub Actions",
+      "type": "process",
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "--entrypoint",
+        "actionlint",
+        "-v",
+        "${workspaceFolder}:/repo:ro",
+        "-w",
+        "/repo",
+        "rhysd/actionlint:1.7.7",
+        "-color"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "hide": true
+    },
+    {
+      "label": "Test: all",
+      "dependsOn": [
+        "Test: build inputs",
+        "Test: module overrides",
+        "Test: scan gate",
+        "Test: release publication",
+        "Test: retention policy",
+        "Lint: Dockerfiles",
+        "Lint: shell scripts",
+        "Lint: GitHub Actions",
+        "Test: CRI smoke"
+      ],
+      "dependsOrder": "sequence",
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": false
+      }
+    }
+  ]
+}

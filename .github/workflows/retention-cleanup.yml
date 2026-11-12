@@ -1,0 +1,48 @@
+name: Retention cleanup
+run-name: Workflow-run retention
+
+on:
+  schedule:
+    # UTC schedule; Europe/Rome: Monday 03:47 CET / 04:47 CEST.
+    - cron: '47 2 * * 1'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Report candidates without deleting them
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  cleanup:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Releases are never deleted; this job only removes completed workflow runs.
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Check retention policy regressions
+        run: python3 -m unittest discover -s tests -p 'test_retention.py'
+      - name: Apply retention policy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry_run || false }}
+        run: |
+          args=()
+          if [ "$DRY_RUN" = true ]; then args+=(--dry-run); fi
+          python3 -m tools.retention "${args[@]}"
+      - name: Retain cleanup plan and result
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: retention-evidence-${{ github.run_id }}
+          path: build/retention-*.json
+          retention-days: 14

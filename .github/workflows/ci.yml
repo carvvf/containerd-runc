@@ -1,0 +1,129 @@
+name: Build, scan and publish
+run-name: containerd and runc qualification
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_call:
+    inputs:
+      force_rebuild:
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      force_rebuild:
+        description: Rebuild even when inputs, revision and the active scan are unchanged
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Check resolver, module, scan, release and retention decisions
+        run: python3 -m unittest discover -s tests -p 'test_*.py'
+      - name: Check shell scripts
+        run: |
+          bash -n tests/smoke-cri.sh
+          bash -n scripts/trivy/resolve-version.sh
+          bash -n docker/apply-module-overrides.sh
+          docker run --rm --entrypoint shellcheck -v "$PWD:/workspace:ro" -w /workspace \
+            koalaman/shellcheck-alpine:v0.10.0 --shell=bash -x \
+            tests/smoke-cri.sh scripts/trivy/resolve-version.sh docker/apply-module-overrides.sh
+      - name: Check Dockerfiles
+        run: |
+          docker run --rm -i hadolint/hadolint:v2.14.0 < docker/containerd/Dockerfile
+          docker run --rm -i hadolint/hadolint:v2.14.0 < docker/runc/Dockerfile
+      - name: Check GitHub Actions workflows
+        run: docker run --rm --entrypoint actionlint -v "$PWD:/repo:ro" -w /repo rhysd/actionlint:1.7.7 -color
+
+  candidate:
+    if: github.event_name == 'pull_request'
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: docker/setup-buildx-action@v4.0.0
+      - name: Build and qualify both components without publishing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -m tools.pipeline check --component all
+      - name: Retain qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: candidate-evidence-${{ github.run_id }}
+          path: |
+            build/*/inputs.json
+            build/*/build.json
+            build/*/trivy-*.json
+            build/*/upstream-tests.log
+            build/*/out/go.mod.diff
+            build/smoke*.log
+          retention-days: 14
+
+  publish:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      # containerd first, so the runc smoke test pairs with the newest containerd release.
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        component: [containerd, runc]
+    concurrency:
+      group: containerd-runc-publication
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: docker/setup-buildx-action@v4.0.0
+      - name: Resolve, qualify and stage a release when required
+        id: pipeline
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMPONENT: ${{ matrix.component }}
+          FORCE_REBUILD: ${{ inputs.force_rebuild || false }}
+        run: |
+          args=(--component "$COMPONENT")
+          if [ "$FORCE_REBUILD" = true ]; then args+=(--force-rebuild); fi
+          python3 -m tools.pipeline auto "${args[@]}"
+      - name: Attest the staged release assets
+        if: steps.pipeline.outputs.staged == 'true'
+        uses: actions/attest-build-provenance@v4.2.2
+        with:
+          subject-path: ${{ steps.pipeline.outputs.assets }}/*
+      - name: Publish the staged release
+        if: steps.pipeline.outputs.staged == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMPONENT: ${{ matrix.component }}
+        run: python3 -m tools.release finalize --component "$COMPONENT"
+      - name: Retain qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: publication-evidence-${{ matrix.component }}-${{ github.run_id }}
+          path: |
+            build/*/inputs.json
+            build/*/build.json
+            build/*/trivy-*.json
+            build/*/upstream-tests.log
+            build/*/out/go.mod.diff
+            build/*/smoke*.log
+            build/*/staged-release.json
+          retention-days: 14

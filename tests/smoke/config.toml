@@ -1,0 +1,28 @@
+# Smoke-test configuration derived from ragtime-rag-orch's external profile (version 4),
+# with test-local paths, cgroupfs instead of systemd (no systemd in the test container),
+# no CNI (host-network pods only) and AppArmor disabled so no profile is loaded on the host.
+version = 4
+root = "/var/lib/containerd-smoke"
+state = "/run/containerd-smoke"
+[plugins.'io.containerd.server.v1.grpc']
+address = "/run/containerd-smoke/containerd.sock"
+uid = 0
+gid = 0
+[plugins.'io.containerd.cri.v1.runtime']
+enable_selinux = false
+enable_unprivileged_ports = true
+enable_unprivileged_icmp = true
+drain_exec_sync_io_timeout = "5s"
+disable_apparmor = true
+[plugins.'io.containerd.cri.v1.images']
+snapshotter = "overlayfs"
+disable_snapshot_annotations = true
+use_local_image_pull = true
+[plugins.'io.containerd.cri.v1.images'.pinned_images]
+sandbox = "rancher/mirrored-pause:3.10.2"
+[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.runc]
+runtime_type = "io.containerd.runc.v2"
+runtime_path = "/smoke/bin/containerd-shim-runc-v2"
+[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.runc.options]
+SystemdCgroup = false
+BinaryName = "/smoke/bin/runc"
