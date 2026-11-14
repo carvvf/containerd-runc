@@ -116,6 +116,7 @@ def qualify(name, inputs, suffix, trivy, revision):
     write_json(directory / "build.json", record)
     summary(f"{name} {version}: no fixable HIGH/CRITICAL findings, {len(unfixed)} without a released fix; "
             "upstream unit tests passed.")
+    scan.report_unfixed(unfixed, f"Qualified {name} {version}")
     return record
 
 
@@ -178,6 +179,7 @@ def auto(name, trivy, revision, force=False):
     active = release.active(name, releases)
     active_inputs = active_revision = None
     findings = False
+    unfixed = []
     if active:
         active_inputs = release.asset_json(active, "inputs.json")
         active_revision = release.asset_json(active, "build.json").get("repository_revision")
@@ -185,12 +187,13 @@ def auto(name, trivy, revision, force=False):
         if binaries.exists():
             shutil.rmtree(binaries)
         release.fetch_binaries(active, binaries)
-        fixable, _ = scan.split_findings(scan.scan_binaries(
+        fixable, unfixed = scan.split_findings(scan.scan_binaries(
             trivy, binaries, COMPONENTS[name].binaries, directory / "trivy-active.json"))
         findings = bool(fixable)
         summary(f"{name}: active release {active['tag_name']}, fixable findings: {len(fixable)}")
     if not needs_rebuild(inputs, active_inputs, active_revision, revision, findings=findings, force=force):
         summary(f"{name}: no rebuild required; active inputs, revision and vulnerability scan are current.")
+        scan.report_unfixed(unfixed, f"Active {name} release")
         return
     version = next_version(name, inputs["upstream"]["version"], release.tag_names(releases))
     record = qualify(name, inputs, version.removeprefix(inputs["upstream"]["version"] + "-"), trivy, revision)

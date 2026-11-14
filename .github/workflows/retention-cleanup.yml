@@ -3,8 +3,8 @@ run-name: Workflow-run retention
 
 on:
   schedule:
-    # UTC schedule; Europe/Rome: Monday 03:47 CET / 04:47 CEST.
-    - cron: '47 2 * * 1'
+    # UTC schedule; Europe/Rome: Monday 01:17 CET / 02:17 CEST.
+    - cron: '17 0 * * 1'
   workflow_dispatch:
     inputs:
       dry_run:

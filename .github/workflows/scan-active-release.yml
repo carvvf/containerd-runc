@@ -3,8 +3,8 @@ run-name: Daily containerd and runc rebuild scan
 
 on:
   schedule:
-    # UTC schedule; Europe/Rome: 03:27 CET / 04:27 CEST.
-    - cron: '27 2 * * *'
+    # UTC schedule; Europe/Rome: 00:57 CET / 01:57 CEST.
+    - cron: '57 23 * * *'
   workflow_dispatch:
     inputs:
       force_rebuild:

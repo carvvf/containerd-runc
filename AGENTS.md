@@ -60,7 +60,10 @@ for the external container runtime of `ragtime-rag-orch`.
 2. Resolve inputs once per operation and record them. Do not substitute inputs
    between qualification and publication: publish the exact qualified files.
 3. Block publication on every fixable Trivy HIGH/CRITICAL finding. Report
-   findings without a released fix separately; they do not block. Fail when the
+   findings without a released fix separately; they do not block. Emit explicit
+   GitHub warnings and include their details in the summary, including when an
+   active scan requires no rebuild. A clean rebuild emits no vulnerability warning
+   and has no intentional notification failure. Fail when the
    report does not contain every expected binary: Trivy ignores Go binaries that
    are not executable. Scan libpathrs's `Cargo.lock` separately, because the Rust
    code linked into runc is invisible to the Go binary analysis. State that
@@ -105,9 +108,9 @@ for the external container runtime of `ragtime-rag-orch`.
 3. Use feature branch, user commits, feature-branch push, PR, and user-controlled
    merge. Force pushes require separate explicit authorization and recovery plan.
 4. Do not change `ragtime-rag-orch`, persisted installation profiles, or live
-   clusters as part of this work. The current suite pins the official binaries
-   and rejects `-custom.<N>` runtime versions; integration needs separate
-   coordinated changes.
+   clusters as part of this work. The suite selects the published releases by
+   attestation and reads their tags, asset names, `SHA256SUMS`, `build.json` and
+   `inputs.json`; a change to any of them needs a coordinated change there.
 5. Report what changed, why, verification actually performed, remaining limits,
    and the operator actions needed to publish and consume the binaries. Do not
    claim publication or cluster compatibility without the corresponding evidence.

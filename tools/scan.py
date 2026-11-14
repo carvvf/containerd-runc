@@ -97,6 +97,25 @@ def gate(*reports):
     return unfixed
 
 
+def report_unfixed(rows, context):
+    """Keep allowed residual findings visible without failing a successful publication."""
+    if not rows:
+        return
+    messages = [f"{context}: {line}" for line in describe(rows)]
+    for message in messages:
+        if os.environ.get("GITHUB_ACTIONS") == "true":
+            escaped = message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+            print(f"::warning title=Vulnerabilities without a released fix::{escaped}", flush=True)
+        else:
+            for line in message.splitlines():
+                print(f"WARNING: {line}", flush=True)
+    if summary := os.environ.get("GITHUB_STEP_SUMMARY"):
+        with Path(summary).open("a") as stream:
+            stream.write(f"\n{context}: {len(rows)} HIGH/CRITICAL findings without a released fix.\n\n")
+            for message in messages:
+                stream.write("    " + message.replace("\r", " ").replace("\n", " ") + "\n")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Rescan an existing local build with the shared gate.")
     parser.add_argument("--component", choices=sorted(COMPONENTS) + ["all"], default="all")

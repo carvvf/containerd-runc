@@ -1,6 +1,12 @@
 """Offline regression tests for scan report validation and the publication gate."""
 
+import os
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from tools import scan
 
@@ -44,6 +50,40 @@ class GateTests(unittest.TestCase):
         unfixed = scan.gate(report, cargo)
         self.assertEqual(len(unfixed), 1)
         self.assertIn("no fix released", scan.describe(unfixed)[0])
+
+
+class ResidualWarningTests(unittest.TestCase):
+    def test_clean_scan_does_not_emit_a_warning(self):
+        output = StringIO()
+        with redirect_stdout(output):
+            scan.report_unfixed([], "Candidate")
+        self.assertEqual(output.getvalue(), "")
+
+    def test_allowed_residuals_emit_annotations_and_persist_details(self):
+        report = {"Results": [result("runc", "gobinary", [finding("example", "")])]}
+        unfixed = scan.gate(report)
+        with TemporaryDirectory() as directory:
+            summary = Path(directory) / "summary.md"
+            output = StringIO()
+            with (
+                patch.dict(os.environ, {"GITHUB_ACTIONS": "true", "GITHUB_STEP_SUMMARY": str(summary)}, clear=True),
+                redirect_stdout(output),
+            ):
+                scan.report_unfixed(unfixed, "Qualified runc")
+            self.assertIn("::warning", output.getvalue())
+            self.assertIn("CVE-1", output.getvalue())
+            self.assertIn("no fix released", summary.read_text())
+
+    def test_report_text_cannot_inject_an_error_annotation(self):
+        report = {
+            "Results": [result("runc", "gobinary", [finding("example\n::error::injected", "")])]
+        }
+        unfixed = scan.gate(report)
+        output = StringIO()
+        with patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}, clear=True), redirect_stdout(output):
+            scan.report_unfixed(unfixed, "Active runc release")
+        self.assertNotIn("\n::error", output.getvalue())
+        self.assertIn("%0A::error", output.getvalue())
 
 
 if __name__ == "__main__":

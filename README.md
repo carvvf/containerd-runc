@@ -16,14 +16,18 @@ the newest official containerd 2.3.7 and runc 1.5.3 binaries showed 23 fixable
 HIGH/CRITICAL Trivy findings (20 and 3), all in Go 1.26.9 or in Go modules.
 Rebuilt with Go 1.26.11 and four targeted module upgrades, they showed none.
 
-The binaries are intended for the external container runtime of
-`ragtime-rag-orch`. This repository does not change that suite; see
+The binaries are the external container runtime of `ragtime-rag-orch`, which
+selects the published releases through their attestation; see
 [Consumption](#consumption).
 
 > [!IMPORTANT]
-> **Status: prototype.** The local `check` qualification passes for containerd
-> 2.3.7 and runc 1.5.3 (and passed earlier for runc 1.5.2). The publication
-> workflows have not run yet, and no release has been published.
+> **Status: prototype.** The publication workflows run on `master`. The first
+> releases, `containerd-2.3.7-custom.1` and `runc-1.5.3-custom.1`, were
+> published on 2026-11-12, followed the same day by `custom.2` of both from a
+> manual dispatch. A `ragtime-rag-orch` three-node lab setup and an identical
+> suite update passed with the `custom.2` pair on 2026-11-12 and 2026-11-13.
+> Replacing the runtime of an installed suite with a newer pair has not been
+> exercised yet.
 
 ## Release lines
 
@@ -69,7 +73,11 @@ A candidate is published only after all of these pass on the exact files:
 
 1. **Trivy.** Go binary analysis of every published executable, blocking on
    fixable HIGH/CRITICAL findings; findings without a released fix are reported
-   and do not block. The report must list every expected binary, because Trivy
+   and do not block. They emit explicit GitHub warning annotations with the CVE,
+   package, installed version and target, also when the active release needs no
+   rebuild. Their details remain in the job summary and retained evidence. A clean
+   rebuild succeeds without a vulnerability warning or notification failure.
+   The report must list every expected binary, because Trivy
    skips Go binaries that are not executable. libpathrs's `Cargo.lock` is scanned
    separately: the Rust code linked into runc is invisible to the Go analysis.
    libseccomp (C) is not covered by the scanner.
@@ -96,7 +104,9 @@ Each component is an independent line with immutable releases:
 
 Every release also carries `SHA256SUMS`, `inputs.json` (source commit, Go
 release and checksum, base digest, module upgrades, scanner version),
-`go.mod.diff`, the Trivy report and a build provenance attestation:
+`build.json` (reported version, Go toolchain, this repository's commit and the
+SHA-256 of every binary), `go.mod.diff`, the Trivy reports and a build
+provenance attestation:
 
 ```bash
 gh attestation verify runc.amd64 --repo carvvf/containerd-runc
@@ -144,7 +154,7 @@ existing build).
 
 1. Pull requests run offline checks and the full `check` qualification without
    publishing.
-2. A push to `master`, the daily scan (`02:27 UTC`) and manual dispatch run the
+2. A push to `master`, the daily scheduled scan and manual dispatch run the
    publication pipeline per component, containerd first. It rebuilds when the
    resolved inputs (module upgrades excluded, since each build derives them) or
    this repository's commit differ from the active release, when a rescan of the
@@ -157,17 +167,26 @@ existing build).
 
 ## Consumption
 
-`ragtime-rag-orch` pins the official artifacts in
-`src/ragtime_rag_orch/containerd_runtime_profile.py`. Adopting these builds is a
-separate change in that repository:
+`ragtime-rag-orch` runs these builds as the external runtime of its three-node
+suite:
 
-1. Pin the release assets (URL, size, archive and binary SHA-256) instead of the
-   official ones.
-2. Accept `v2.3.<N>-custom.<M>` in `require_bounded_execsync` and in the
-   profile's exact version checks, which today accept only `v2.3.<N>` and the
-   K3s `-k3s…` suffix.
-3. Reach existing installations through the runtime replacement planned for
-   `suite update`.
+1. **Setup** takes, for each line, the newest published, non-draft,
+   non-prerelease release at or above the floor, ordered by upstream patch and
+   then by build number. Before any node changes it verifies `SHA256SUMS` with
+   `gh attestation verify`, accepting only `.github/workflows/ci.yml` on
+   `refs/heads/master` and GitHub-hosted runners as the signer, checks that
+   `build.json` and `inputs.json` match their attested checksums and describe
+   the release, and records the pair. Nodes download the assets from
+   `https://github.com/` without credentials and verify sizes, archive checksums
+   and binary hashes before staging.
+2. **Suite update** replaces the runtime one server at a time when a newer pair
+   is published.
+
+The tag and version scheme, the asset names, `SHA256SUMS`, `build.json`,
+`inputs.json` and the signer workflow are therefore a contract with that suite:
+changing any of them breaks its release selection (see
+[Release and compatibility policy](AGENTS.md#release-and-compatibility-policy)).
+See `docs/k3s_containerd_runtime.md` in `ragtime-rag-orch` for its side.
 
 ## License
 
