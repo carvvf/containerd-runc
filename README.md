@@ -172,12 +172,14 @@ existing build).
    variable `RENOVATE_APP_CLIENT_ID` and private key the secret
    `RENOVATE_APP_PRIVATE_KEY`. A new containerd or runc release line waits on
    the Dependency Dashboard issue, each as an item of its own, and gets its own
-   pull request only once approved. New GitHub Actions versions and a new Trivy
-   line go in one cumulative pull request. Renovate leaves alone the Go minor
-   and the build bases, which follow upstream's release builds, and the module
-   upgrades, which follow the findings. Nothing is merged automatically. Pull
-   requests validate `renovate.json5` with the Renovate release `renovate.yml`
-   runs.
+   pull request only once approved. Ticking a box on the Dependency Dashboard
+   issue (an approval, a retry) starts a run at once instead of at the weekly
+   one; Renovate's own edits of the issue start none. New GitHub Actions
+   versions and a new Trivy line go in one cumulative pull request. Renovate
+   leaves alone the Go minor and the build bases, which follow upstream's
+   release builds, and the module upgrades, which follow the findings. Nothing
+   is merged automatically. Pull requests validate `renovate.json5` with the
+   Renovate release `renovate.yml` runs.
 5. Both Dockerfiles refresh the package index through `docker/retry.sh`, mounted
    for the command only: up to five attempts with pauses of 30, 60, 90 and 120
    seconds, with `--error-on=any` so that an unreachable source fails it too

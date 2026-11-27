@@ -1,5 +1,7 @@
 name: Renovate
-run-name: Renovate dependency updates
+run-name: >-
+  ${{ github.event_name == 'issues' && 'Renovate after a Dependency Dashboard edit'
+  || 'Renovate dependency updates' }}
 
 # Opens or refreshes one cumulative pull request with the updates the image workflows do not
 # move on their own, and keeps the Dependency Dashboard issue that lists the reviewed changes
@@ -7,6 +9,9 @@ run-name: Renovate dependency updates
 # trigger this repository's workflows like any other, and it may update workflow files.
 # The App is installed on this repository with these repository permissions: contents, issues,
 # pull requests and workflows read and write; checks and commit statuses read; metadata read.
+# Besides the weekly and the manual runs, a person's edit of the Dependency Dashboard (ticking
+# an approval or a retry box) starts a run at once. Only collaborators with write access can
+# edit an issue the App opened.
 on:
   schedule:
     # UTC schedule; Europe/Rome: Monday 00:47 CET / 01:47 CEST.
@@ -21,6 +26,8 @@ on:
         options:
           - info
           - debug
+  issues:
+    types: [edited]
 
 permissions:
   contents: read
@@ -31,6 +38,14 @@ concurrency:
 
 jobs:
   renovate:
+    # Issue edits count only on the dashboard and only by a person: Renovate rewrites the
+    # dashboard on every run, and edits made with an App token start workflows, so its own
+    # edits would loop.
+    if: >-
+      github.event_name != 'issues' ||
+      (github.event.issue.title == 'Dependency Dashboard' &&
+      github.event.issue.user.login == 'ragtime-renovate[bot]' &&
+      github.event.sender.type != 'Bot')
     runs-on: ubuntu-latest
     # Renovate clones the repository itself with the App token; no checkout is needed.
     steps:
