@@ -23,9 +23,13 @@ for the external container runtime of `ragtime-rag-orch`.
 
 ## Release and compatibility policy
 
-1. Automatic selection is limited to stable containerd `2.3.x` (floor `2.3.7`,
-   which contains the ExecSync drain fix first released in `2.3.5`) and stable
-   runc `1.5.x` (floor `1.5.2`). Each component is an independent release line.
+1. Automatic selection is limited to stable releases of the containerd and runc
+   lines pinned as `CONTAINERD_SERIES` and `RUNC_SERIES` in
+   `tools/build_inputs.py`, the only copy of each, at or above the floors there
+   (containerd `2.3.7` contains the ExecSync drain fix first released in
+   `2.3.5`; runc `1.5.2`). Each component is an independent release line.
+   Renovate lists a new line on the Dependency Dashboard and opens its pull
+   request only once approved; that approval is the confirmation rule 5 asks for.
 2. The Go toolchain is the newest stable patch of the Go minor that upstream's
    own release build declares (containerd
    `.github/workflows/release/Dockerfile`, runc `Dockerfile`), never older than

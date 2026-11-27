@@ -1,0 +1,57 @@
+name: Renovate
+run-name: Renovate dependency updates
+
+# Opens or refreshes one cumulative pull request with the updates the image workflows do not
+# move on their own, and keeps the Dependency Dashboard issue that lists the reviewed changes
+# awaiting approval (see renovate.json5). Renovate acts as a GitHub App, so its pull requests
+# trigger this repository's workflows like any other, and it may update workflow files.
+# The App is installed on this repository with these repository permissions: contents, issues,
+# pull requests and workflows read and write; checks and commit statuses read; metadata read.
+on:
+  schedule:
+    # UTC schedule; Europe/Rome: Monday 00:47 CET / 01:47 CEST.
+    - cron: '47 23 * * 0'
+  workflow_dispatch:
+    inputs:
+      log_level:
+        description: "Renovate log level"
+        required: false
+        default: "info"
+        type: choice
+        options:
+          - info
+          - debug
+
+permissions:
+  contents: read
+
+concurrency:
+  group: renovate-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    # Renovate clones the repository itself with the App token; no checkout is needed.
+    steps:
+      - name: Create a GitHub App installation token
+        id: app-token
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
+        with:
+          client-id: ${{ vars.RENOVATE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RENOVATE_APP_PRIVATE_KEY }}
+
+      - name: Run Renovate
+        uses: renovatebot/github-action@ebcbb513d07ead4d9c0c2139064301db05e84a3e # v46.3.15
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          renovate-version: 44.263.5
+        env:
+          LOG_LEVEL: ${{ inputs.log_level || 'info' }}
+          RENOVATE_PLATFORM: github
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          # The repository configuration already exists; no onboarding pull request.
+          RENOVATE_ONBOARDING: "false"
+          RENOVATE_REQUIRE_CONFIG: required
+          # Commits created through the API are signed by GitHub as the App.
+          RENOVATE_PLATFORM_COMMIT: enabled

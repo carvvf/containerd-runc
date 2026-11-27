@@ -19,6 +19,21 @@ PLATFORM = "linux/amd64"
 GO_RELEASES_URL = "https://go.dev/dl/?mode=json&include=all"
 REPOSITORY = "carvvf/containerd-runc"
 
+# Release lines, the only copy of each. A new line is a reviewed change (AGENTS.md,
+# release and compatibility policy): Renovate lists it on the Dependency Dashboard and
+# opens its pull request only once approved. A floor below a new line is still satisfied,
+# so the floors below need no change with it.
+# renovate: datasource=github-releases depName=containerd/containerd
+CONTAINERD_SERIES = "2.3"
+# renovate: datasource=github-releases depName=opencontainers/runc
+RUNC_SERIES = "1.5"
+
+
+def parse_version(text):
+    if not re.fullmatch(r"[0-9]+(\.[0-9]+){1,2}", text):
+        raise ValueError(f"Invalid version: {text}")
+    return tuple(map(int, text.split(".")))
+
 
 @dataclass(frozen=True)
 class Component:
@@ -36,7 +51,7 @@ COMPONENTS = {
     "containerd": Component(
         name="containerd",
         repository="containerd/containerd",
-        series=(2, 3),
+        series=parse_version(CONTAINERD_SERIES),
         floor=(2, 3, 7),
         go_file=".github/workflows/release/Dockerfile",
         base_image="ubuntu:22.04",
@@ -46,7 +61,7 @@ COMPONENTS = {
     "runc": Component(
         name="runc",
         repository="opencontainers/runc",
-        series=(1, 5),
+        series=parse_version(RUNC_SERIES),
         floor=(1, 5, 2),
         go_file="Dockerfile",
         base_image="debian:trixie",
@@ -54,12 +69,6 @@ COMPONENTS = {
         binaries=("runc",),
     ),
 }
-
-
-def parse_version(text):
-    if not re.fullmatch(r"[0-9]+(\.[0-9]+){1,2}", text):
-        raise ValueError(f"Invalid version: {text}")
-    return tuple(map(int, text.split(".")))
 
 
 def release_version(release, series, floor):

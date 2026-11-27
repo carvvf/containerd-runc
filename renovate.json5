@@ -1,0 +1,67 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  // Renovate proposes only what the daily rebuild does not move on its own. Rebuilds already
+  // take the newest patch of each release line, the newest Go patch of the minor upstream's
+  // release build declares, the build bases by digest, the module upgrades that remove
+  // fixable findings, and the newest Trivy patch of its line. The Go minor and the build
+  // bases follow upstream's release builds, and the module upgrades follow the findings, so
+  // Renovate leaves them alone (AGENTS.md, release and compatibility policy).
+  // Keep pinned GitHub Actions on a commit digest, with the release tag in a comment.
+  extends: ["helpers:pinGitHubActionDigests"],
+  enabledManagers: ["github-actions", "custom.regex"],
+  // A release line change needs explicit confirmation, so each line waits on the Dependency
+  // Dashboard as an item of its own and gets its own pull request only once approved there.
+  // GitHub Actions and the Trivy line go in one cumulative pull request. Nothing is merged
+  // automatically.
+  dependencyDashboard: { enabled: true },
+  automerge: false,
+  // Major updates stay in the cumulative pull request instead of a branch of their own.
+  separateMajorMinor: false,
+  customManagers: [
+    {
+      // CONTAINERD_SERIES and RUNC_SERIES in tools/build_inputs.py: only the line is pinned,
+      // and a release tag vX.Y.Z offers the line X.Y.
+      customType: "regex",
+      managerFilePatterns: ["/^tools/build_inputs\\.py$/"],
+      matchStrings: [
+        '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n[A-Z_]+ = "(?<currentValue>\\d+\\.\\d+)"',
+      ],
+      extractVersionTemplate: "^v(?<version>\\d+\\.\\d+)\\.\\d+$",
+      versioningTemplate: "loose",
+    },
+    {
+      // Only the Trivy release line is pinned; resolve-version.sh takes its newest patch.
+      // TRIVY_FLOOR is not rewritten: a floor below the new line is still satisfied.
+      customType: "regex",
+      managerFilePatterns: ["/^scripts/trivy/resolve-version\\.sh$/"],
+      matchStrings: ["TRIVY_SERIES='(?<currentValue>\\d+\\.\\d+)'"],
+      datasourceTemplate: "docker",
+      depNameTemplate: "aquasec/trivy",
+      extractVersionTemplate: "^(?<version>\\d+\\.\\d+)\\.\\d+$",
+      versioningTemplate: "loose",
+    },
+  ],
+  packageRules: [
+    {
+      // One cumulative pull request per run, rebased while new updates arrive.
+      matchPackageNames: ["*"],
+      groupName: "uncovered dependencies",
+    },
+    {
+      matchDepNames: ["containerd/containerd"],
+      dependencyDashboardApproval: true,
+      groupName: "containerd release line",
+      prBodyNotes: [
+        "A containerd release line change needs, before merging, the explanation of compatibility, tests, consumers and rollout that AGENTS.md requires, a floor review, and the matching change in ragtime-rag-orch, which ignores a new line until its own containerd line moves.",
+      ],
+    },
+    {
+      matchDepNames: ["opencontainers/runc"],
+      dependencyDashboardApproval: true,
+      groupName: "runc release line",
+      prBodyNotes: [
+        "A runc release line change needs, before merging, the explanation of compatibility, tests, consumers and rollout that AGENTS.md requires, a floor review, and the matching change in ragtime-rag-orch, which ignores a new line until its own runc line moves.",
+      ],
+    },
+  ],
+}

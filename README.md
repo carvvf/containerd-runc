@@ -33,14 +33,17 @@ selects the published releases through their attestation; see
 
 | Component | Automatic selection | Floor | Go toolchain | Build base |
 | --- | --- | --- | --- | --- |
-| containerd | Stable `2.3.x` | `2.3.7` | Newest patch of the Go minor in upstream's release Dockerfile | `ubuntu:22.04` by digest |
-| runc | Stable `1.5.x` | `1.5.2` | Newest patch of the Go minor in upstream's Dockerfile | `debian:trixie` by digest |
+| containerd | Stable releases of `CONTAINERD_SERIES` | `2.3.7` | Newest patch of the Go minor in upstream's release Dockerfile | `ubuntu:22.04` by digest |
+| runc | Stable releases of `RUNC_SERIES` | `1.5.2` | Newest patch of the Go minor in upstream's Dockerfile | `debian:trixie` by digest |
 | libseccomp, libpathrs | Versions and checksums declared by the runc release | — | — | built by runc's scripts |
 | Trivy | Stable `0.76.x` container | `0.76.1` | — | — |
 
 The containerd floor keeps the ExecSync drain fix first released in 2.3.5,
 which is why the suite runs an external runtime. A new release line, floor or
-Go minor is a reviewed change, not an automatic one.
+Go minor is a reviewed change, not an automatic one. `CONTAINERD_SERIES` and
+`RUNC_SERIES` in `tools/build_inputs.py` are the only copies of the lines; a
+floor below a new line is still satisfied, so a line change needs no floor
+change, only a floor review.
 
 ## Build policy
 
@@ -164,6 +167,22 @@ existing build).
    with its official binaries before the first release.
 3. The weekly retention job deletes completed workflow runs older than 60 days.
    It never touches releases.
+4. `renovate.yml` runs Renovate weekly (Monday night, Europe/Rome) and on demand
+   as the `ragtime-renovate` GitHub App, whose client ID is the repository
+   variable `RENOVATE_APP_CLIENT_ID` and private key the secret
+   `RENOVATE_APP_PRIVATE_KEY`. A new containerd or runc release line waits on
+   the Dependency Dashboard issue, each as an item of its own, and gets its own
+   pull request only once approved. New GitHub Actions versions and a new Trivy
+   line go in one cumulative pull request. Renovate leaves alone the Go minor
+   and the build bases, which follow upstream's release builds, and the module
+   upgrades, which follow the findings. Nothing is merged automatically. Pull
+   requests validate `renovate.json5` with the Renovate release `renovate.yml`
+   runs.
+5. Both Dockerfiles refresh the package index through `docker/retry.sh`, mounted
+   for the command only: up to five attempts with pauses of 30, 60, 90 and 120
+   seconds, with `--error-on=any` so that an unreachable source fails it too
+   (apt only warns about one and exits 0). A mirror that is mid-sync no longer
+   fails a build at once; a failure that outlasts every attempt still fails it.
 
 ## Consumption
 

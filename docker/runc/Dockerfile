@@ -23,8 +23,12 @@ RUN for name in GO_VERSION GO_SHA256 UPSTREAM_TAG UPSTREAM_REVISION LIBSECCOMP_V
     done
 # The build packages of upstream's Dockerfile, without its cross-compilers and
 # integration-test tools.
+# The package index update goes through retry.sh, mounted for the command only: it
+# retries it with growing pauses while a distribution mirror is mid-sync, and
+# --error-on=any makes an unreachable source an error too, since apt only warns about it.
 # hadolint ignore=DL3008
-RUN apt-get update \
+RUN --mount=type=bind,source=retry.sh,target=/mnt/retry.sh \
+    sh /mnt/retry.sh apt-get update --error-on=any \
     && DEBIAN_FRONTEND=noninteractive apt-get -y upgrade \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       build-essential ca-certificates cargo cargo-auditable clang curl gawk git gperf \
