@@ -125,12 +125,16 @@ class RuncDependencyTests(unittest.TestCase):
 
 class ResolveTests(unittest.TestCase):
     def test_resolve_runc_records_every_input(self):
-        url = "https://github.com/opencontainers/runc/releases/download/v1.5.2/runc.amd64"
+        # The release comes from the configured line, so the test follows a change of
+        # RUNC_SERIES; the other release belongs to the line before it.
+        major, minor = inputs.parse_version(inputs.RUNC_SERIES)
+        version, older = f"{major}.{minor}.2", f"{major}.{minor - 1}.9"
+        url = f"https://github.com/opencontainers/runc/releases/download/v{version}/runc.amd64"
         api = {
             "https://api.github.com/repos/opencontainers/runc/releases?per_page=100": (
-                [release("v1.5.2", assets=[{"name": "runc.amd64", "digest": "sha256:" + SUM,
-                                            "browser_download_url": url}]), release("v1.4.9")], ""),
-            "https://api.github.com/repos/opencontainers/runc/commits/v1.5.2": ({"sha": REVISION}, ""),
+                [release("v" + version, assets=[{"name": "runc.amd64", "digest": "sha256:" + SUM,
+                                                "browser_download_url": url}]), release("v" + older)], ""),
+            f"https://api.github.com/repos/opencontainers/runc/commits/v{version}": ({"sha": REVISION}, ""),
         }
         raw = f"https://raw.githubusercontent.com/opencontainers/runc/{REVISION}/"
         files = {
@@ -143,8 +147,8 @@ class ResolveTests(unittest.TestCase):
         }
         result = inputs.resolve("runc", fetch_json=api.__getitem__, fetch=files.__getitem__,
                                 digest=lambda ref: "sha256:" + "e" * 64)
-        self.assertEqual(result["upstream"], {"repository": "opencontainers/runc", "tag": "v1.5.2",
-                                              "version": "1.5.2", "revision": REVISION})
+        self.assertEqual(result["upstream"], {"repository": "opencontainers/runc", "tag": "v" + version,
+                                              "version": version, "revision": REVISION})
         self.assertEqual(result["go"], {"version": "1.26.11", "sha256": SUM, "declared": "1.26"})
         self.assertEqual(result["go_directive"], "1.25.0")
         self.assertEqual(result["base"]["image"], "debian:trixie")

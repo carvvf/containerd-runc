@@ -169,6 +169,26 @@
       "group": "test"
     },
     {
+      "label": "Test: package index retry",
+      "type": "process",
+      "command": "/usr/bin/python3",
+      "args": [
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_retry.py"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "hide": true,
+      "group": "test"
+    },
+    {
       "label": "Lint: Dockerfiles",
       "hide": true,
       "type": "shell",
@@ -212,6 +232,29 @@
       "hide": true
     },
     {
+      "label": "Lint: POSIX shell scripts",
+      "type": "process",
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "--entrypoint",
+        "shellcheck",
+        "-v",
+        "${workspaceFolder}:/workspace:ro",
+        "-w",
+        "/workspace",
+        "koalaman/shellcheck-alpine:v0.10.0",
+        "--shell=sh",
+        "docker/retry.sh"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "hide": true
+    },
+    {
       "label": "Lint: GitHub Actions",
       "type": "process",
       "command": "docker",
@@ -241,8 +284,10 @@
         "Test: scan gate",
         "Test: release publication",
         "Test: retention policy",
+        "Test: package index retry",
         "Lint: Dockerfiles",
         "Lint: shell scripts",
+        "Lint: POSIX shell scripts",
         "Lint: GitHub Actions",
         "Test: CRI smoke"
       ],
